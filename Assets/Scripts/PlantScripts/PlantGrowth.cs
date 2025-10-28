@@ -49,4 +49,11 @@ public class PlantGrowth : MonoBehaviour
     {
         return currentStep;
     }
+
+    public void ResetGrowth()
+    {
+        currentStep = 0;
+        timeSinceGrown = 0;
+        GetComponent<SpriteRenderer>().sprite = growthSteps[0];
+    }
 }

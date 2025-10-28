@@ -116,6 +116,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   resources:
-  - food
-  stageRequirement: 01000000
+  - resource: {fileID: 11400000, guid: e8584cf7e29c1444295a38d5f989aad2, type: 2}
+    stageRequirment: 1
+    amount: 5
+    isDestroyedOnGather: 1
   plantGrowth: {fileID: 348876422184981910}

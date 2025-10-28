@@ -12,13 +12,13 @@ public class TileMapGen : MonoBehaviour
 
     private List<List<TileInfo>> world;
     private WorldSettings settings;
-    private Vector2 startPerlisPos;
+    private Vector2 startPerlinPos;
 
     private void Awake()
     {
         world = new List<List<TileInfo>>();
         settings = WorldSettingsRuntime.Instance.Settings;
-        startPerlisPos = new Vector2(Random.Range(0f, 99999f), Random.Range(0f, 99999f));
+        startPerlinPos = new Vector2(Random.Range(0f, 99999f), Random.Range(0f, 99999f));
 
         //scale sand and shallow water size according to sea level
 
@@ -28,13 +28,14 @@ public class TileMapGen : MonoBehaviour
 
     public List<List<TileInfo>> GenerateWorld()
     {
+        
         for(int i = 0; i < settings.worldSize.y; i++)
         {
             world.Add(new List<TileInfo>());
 
             for(int j = 0; j < settings.worldSize.x; j++)
             {
-                float perlinValue = GeneratePerlinValue(startPerlisPos, j, i);
+                float perlinValue = GeneratePerlinValue(startPerlinPos, j, i);
 
 
                 // checks if land tile or water tile should be placed, considers continent border which is essential water level
@@ -77,7 +78,18 @@ public class TileMapGen : MonoBehaviour
                 }
             }
         }
+        
+        /*
+        for(int i = 0; i < settings.worldSize.y; i++)
+        {
+            world.Add(new List<TileInfo>());
 
+            for (int j = 0; j < settings.worldSize.x; j++)
+            {
+                AddTile(j, i, "Grass");
+            }
+        }
+        */
         return world;
     }
 
@@ -91,6 +103,6 @@ public class TileMapGen : MonoBehaviour
     {
         TileInfo toAdd = new TileInfo(tileManager.GetTile(name));
         world[y].Add(toAdd);
-        tilemap.SetTile(new Vector3Int(x, settings.worldSize.y - y, 0), toAdd.GetTileBase());
+        tilemap.SetTile(new Vector3Int(x, y, 0), toAdd.GetTileBase());
     }
 }

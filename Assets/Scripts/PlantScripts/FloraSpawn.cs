@@ -8,7 +8,7 @@ public class FloraSpawn : MonoBehaviour
     private int growthIndex;
 
     //x and y correspond to position, and z is a timer for when to check if we can grow something
-    private List<Vector3Int> fertileCandidates;
+    private List<FertileTile> fertileCandidates;
 
     //reference to world manager to access fertile tiles
     [SerializeField] WorldManager worldManager;
@@ -17,9 +17,6 @@ public class FloraSpawn : MonoBehaviour
     [SerializeField] private float tickRate;
     private float timer;
     private int globalTimer;
-
-    // cancellation token to abort async task if needed
-    private CancellationTokenSource rebuildCts;
 
     //variable to track if we are rebuilding fertile candidates list
     private bool isRebuilding;
@@ -33,9 +30,9 @@ public class FloraSpawn : MonoBehaviour
         timer = 0f;
         globalTimer = 0;
         isRebuilding = false;
-        isEditingTiles = false;
+        isEditingTiles = true;
 
-        fertileCandidates = new List<Vector3Int>();
+        fertileCandidates = new List<FertileTile>();
     }
 
     private void Start()
@@ -64,23 +61,14 @@ public class FloraSpawn : MonoBehaviour
 
     private void Rebuild()
     {
-        Debug.Log("started rebuilding, current size is " + fertileCandidates.Count);
         if (isEditingTiles)
             return;
 
-        rebuildCts = new CancellationTokenSource();
+        isRebuilding = true;
 
-        RebuildGrowthListAsync(rebuildCts.Token).ContinueWith(task =>
-        {
-            // make sure task completed successfully
-            if (!task.IsCanceled && task.Status == TaskStatus.RanToCompletion)
-            {
-                fertileCandidates = task.Result;
-            }
-            isRebuilding = false;
-            Debug.Log("done rebuilding, new size is " + fertileCandidates.Count);
-            
-        });
+        fertileCandidates = RebuildGrowthList();
+
+        isRebuilding = false;
     }
 
     private void tickRefresh()
@@ -98,13 +86,13 @@ public class FloraSpawn : MonoBehaviour
         globalTimer++;
         
         Vector2Int tileCoordinates;
-        while (globalTimer >= fertileCandidates[growthIndex].z)
+        while (globalTimer >= fertileCandidates[growthIndex].GrowthDifficulty)
         {
-            tileCoordinates = new Vector2Int(fertileCandidates[growthIndex].x, fertileCandidates[growthIndex].y);
+            tileCoordinates = fertileCandidates[growthIndex].Position;
 
             if (CanGrow(tileCoordinates))   
             {
-                GameObject plant = Instantiate(worldManager.GetTile(tileCoordinates).GetRandomPlant(), new Vector3(tileCoordinates.x, worldManager.GetMap().Count - tileCoordinates.y, 0), Quaternion.identity) as GameObject;
+                GameObject plant = Instantiate(worldManager.GetTile(tileCoordinates).GetRandomPlant(), new Vector3(tileCoordinates.x, tileCoordinates.y, 0), Quaternion.identity) as GameObject;
                     
                 worldManager.AddPlant(tileCoordinates, plant);
                 worldManager.GetTile(tileCoordinates).hasFlora = true;
@@ -119,83 +107,56 @@ public class FloraSpawn : MonoBehaviour
         }   
     }
 
-    private async Task<List<Vector3Int>> RebuildGrowthListAsync(CancellationToken token)
+    private List<FertileTile> RebuildGrowthList()
     {
 
         isRebuilding = true;
 
-        Dictionary<Vector2Int, int> safeCopy = new Dictionary<Vector2Int, int>();
+        List<FertileTile> tempList = new List<FertileTile>();
         foreach (var tile in worldManager.GetFertileTiles())
         {
-            if (!tile.Value.hasFlora)
+            if (!tile.Value.isTaken)
             {
-                safeCopy.Add(tile.Key, tile.Value.GetGrowthDifficulty());
+                FertileTile toAdd = new FertileTile();
+                toAdd.Position = tile.Key;
+                toAdd.Std = tile.Value.GetGrowthSpeedVariability();
+                toAdd.GrowthDifficulty = Mathf.Max(Mathf.RoundToInt(NormalDistribution.GetRandom(tile.Value.GetGrowthDifficulty(), toAdd.Std)), 0);
+                
+                tempList.Add(toAdd);
             }
         }
 
-        List<Vector3Int> tempList = await Task.Run(() => {
-
-            fertileCandidates.Clear();
-
-            List<Vector3Int> list = new List<Vector3Int>();
-
-            foreach (var kvp in safeCopy)
-            {
-                if (token.IsCancellationRequested)
-                    break;
-
-                if (kvp.Value != 0)
-                {
-                    list.Add(new Vector3Int(kvp.Key.x, kvp.Key.y, GenerateGrowthTimer(kvp.Value)));
-                }
-            }
-
-            MergeSort(list, 0, list.Count - 1);
-     
-            return list;
-        });
-       
+        MergeSort(tempList, 0, tempList.Count - 1);
         return tempList;
     }
 
-
-    private int GenerateGrowthTimer(int growthDifficulty)
-    {
-        System.Random random = new System.Random();
-        return random.Next(0, growthDifficulty + 1);
-    }
-
     // r = size - 1
-    private void MergeSort(List<Vector3Int> toSort, int l, int r)
+    private void MergeSort(List<FertileTile> toSort, int l, int r)
     {
         int mid = l + (r - l) / 2;
 
-        if (l != r)
+        if (l >= r)
         {
-            // sort left side, if list has odd amount of entries, r will be even, we need to subtract 1
-            MergeSort(toSort, l, mid);
-
-            // sort right side
-            MergeSort(toSort, mid + 1, r);
-        }
-
-        else
-        {
-            // best case, sorted
             return;
         }
+
+        // sort left side
+        MergeSort(toSort, l, mid);
+
+        // sort right side
+        MergeSort(toSort, mid + 1, r);
 
         // here we have two sorted lists, one of them (l, (r / 2) - ((r+1) % 2)) and another one is (r / 2 + (r % 2), r)
 
         int leftPtr = l;
         int rightPtr = mid + 1;
         int index = 0;
-        Vector3Int[] sortedSublist = new Vector3Int[r - l + 1];
+        FertileTile[] sortedSublist = new FertileTile[r - l + 1];
 
         while(leftPtr < mid + 1 && rightPtr <= r)
         {
             // compare minimum of two sorted lists
-            if (toSort[rightPtr].z < toSort[leftPtr].z)
+            if (toSort[rightPtr].GrowthDifficulty < toSort[leftPtr].GrowthDifficulty)
             {
                 sortedSublist[index] = toSort[rightPtr];
 
@@ -236,12 +197,12 @@ public class FloraSpawn : MonoBehaviour
     
     private bool CanGrow(Vector2Int tilePos)
     {
-        if(worldManager.GetTile(new Vector2Int(tilePos.x, tilePos.y)).GetGrowthDifficulty() == 0)
+        if(worldManager.GetTile(tilePos).GetGrowthDifficulty() == 0)
         {
             return false;
         }
 
-        return !HaveNeihbors(tilePos, -1, worldManager.GetTile(tilePos).GetSpaceRequirement());
+        return (!HaveNeihbors(tilePos, -1, worldManager.GetTile(tilePos).GetSpaceRequirement()) && !worldManager.GetTile(tilePos).isTaken);
     }
 
     // returns true if there is an object within distance
@@ -322,11 +283,17 @@ public class FloraSpawn : MonoBehaviour
     public void BeginEdit()
     {
         isEditingTiles = true;
-        rebuildCts?.Cancel();
     }
 
     public void EndEdit()
     {
         isEditingTiles = false;
     }
+}
+
+public struct FertileTile
+{
+    public Vector2Int Position;
+    public int GrowthDifficulty;
+    public float Std;
 }

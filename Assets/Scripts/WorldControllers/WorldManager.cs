@@ -39,8 +39,6 @@ public class WorldManager : MonoBehaviour
                 }
             }
         }
-
-        Debug.Log("num of fertile tiles " + fertileTiles.Count);
     }
     
     public Dictionary<Vector2Int, TileInfo> GetFertileTiles()
@@ -68,18 +66,46 @@ public class WorldManager : MonoBehaviour
         return map[coordinates.y][coordinates.x];
     }
 
-    public bool Gather(Vector2Int pos)
+    public int Gather(Vector2Int pos, Resource toGather)
     {
         // pos is given in real coordinates, not array one
-        pos = new Vector2Int(pos.x, map.Count - pos.y);
+        //pos = new Vector2Int(pos.x, map.Count - pos.y);
 
         if (plants.ContainsKey(pos))
         {
+            if (plants[pos].GetComponent<PlantInfo>().CanGather(toGather)) 
+            {
+                int amountGathered = plants[pos].GetComponent<PlantInfo>().Gather(toGather);
+
+                if (plants[pos].GetComponent<PlantInfo>().isBeingDestroyed(toGather))
+                {
+                    Destroy(plants[pos]);
+                    plants.Remove(pos);
+                    map[pos.y][pos.x].hasFlora = false;
+                }
+
+                return amountGathered;
+            }
+        }
+
+        return 0;
+    }
+
+    public bool DestroyPlant(Vector2Int pos)
+    {
+        if(plants.ContainsKey(pos))
+        {
             Destroy(plants[pos]);
+            plants.Remove(pos);
             map[pos.y][pos.x].hasFlora = false;
+
             return true;
         }
 
-        return false;
+        else
+        {
+            map[pos.y][pos.x].hasFlora = false;
+            return false;
+        }
     }
 }

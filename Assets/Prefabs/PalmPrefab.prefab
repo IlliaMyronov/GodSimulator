@@ -113,6 +113,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   resources:
-  - wood
-  stageRequirement: 00000000
+  - resource: {fileID: 11400000, guid: bf28089942448894cb8b372f5b5182ea, type: 2}
+    stageRequirment: 0
+    amount: 1
+    isDestroyedOnGather: 1
   plantGrowth: {fileID: -3280105565426394463}
